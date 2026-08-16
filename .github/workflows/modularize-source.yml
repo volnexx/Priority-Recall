@@ -1,0 +1,58 @@
+name: Modularize source
+
+on:
+  push:
+    branches:
+      - refactor/modular-source
+
+permissions:
+  contents: write
+
+jobs:
+  modularize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Recover modular sources from current bundle
+        run: node scripts/modularize.mjs
+      - name: Install build dependency
+        run: npm install
+      - name: Build bundled Obsidian entrypoint
+        run: npm run build
+      - name: Syntax check
+        run: npm run check
+      - name: Smoke-load bundle with Obsidian stub
+        run: |
+          node <<'NODE'
+          const Module = require('module');
+          const originalLoad = Module._load;
+          Module._load = function(request, parent, isMain) {
+            if (request === 'obsidian') {
+              const Base = class {};
+              return new Proxy({ ItemView: Base, PluginSettingTab: Base, Plugin: Base }, {
+                get(target, key) {
+                  if (key in target) return target[key];
+                  return () => {};
+                }
+              });
+            }
+            return originalLoad.call(this, request, parent, isMain);
+          };
+          const plugin = require('./main.js');
+          if (typeof plugin !== 'function') throw new Error('main.js не экспортирует класс плагина');
+          console.log('Bundle smoke test passed');
+          NODE
+      - name: Commit modular source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src package.json package-lock.json ARCHITECTURE.md main.js
+          git diff --cached --quiet && exit 0
+          git commit -m "Refactor plugin into source modules"
+          git push origin HEAD:refactor/modular-source
