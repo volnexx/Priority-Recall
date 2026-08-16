@@ -1,32 +1,31 @@
-name: Modularize source
+name: Build check
 
 on:
   push:
     branches:
-      - refactor/modular-source
+      - main
+  pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  modularize:
-    if: github.actor != 'github-actions[bot]'
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Recover modular sources from current bundle
-        run: node scripts/modularize.mjs
-      - name: Install build dependency
-        run: npm install
-      - name: Build bundled Obsidian entrypoint
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build plugin
         run: npm run build
-      - name: Syntax check
+      - name: Check syntax
         run: npm run check
+      - name: Verify committed bundle is current
+        run: git diff --exit-code -- main.js
       - name: Smoke-load bundle with Obsidian stub
         run: |
           node <<'NODE'
@@ -45,14 +44,6 @@ jobs:
             return originalLoad.call(this, request, parent, isMain);
           };
           const plugin = require('./main.js');
-          if (typeof plugin !== 'function') throw new Error('main.js не экспортирует класс плагина');
+          if (typeof plugin !== 'function') throw new Error('main.js does not export the plugin class');
           console.log('Bundle smoke test passed');
           NODE
-      - name: Commit modular source
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src package.json package-lock.json ARCHITECTURE.md main.js
-          git diff --cached --quiet && exit 0
-          git commit -m "Refactor plugin into source modules"
-          git push origin HEAD:refactor/modular-source
