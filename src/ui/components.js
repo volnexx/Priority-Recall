@@ -1,9 +1,10 @@
 "use strict";
 
 const import_obsidian = require("obsidian");
+const { stripBoldMarkers } = require("../core/card");
 
 function formatCardTextForDisplay(text) {
-  return text.replaceAll("**", "");
+  return stripBoldMarkers(text);
 }
 var formatTermForDisplay = formatCardTextForDisplay;
 function renderMultiPinIcon(button, crossedOut = false) {

@@ -1,7 +1,7 @@
 "use strict";
 
 const import_obsidian = require("obsidian");
-const { normalizeClockTime } = require("./settings");
+const { normalizeClockTime } = require("../core/settings");
 
 var TermIntervalReviewSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {

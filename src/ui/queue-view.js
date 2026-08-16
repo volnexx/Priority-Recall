@@ -1,10 +1,12 @@
 "use strict";
 
 const import_obsidian = require("obsidian");
-const { formatTermForDisplay, renderMultiPinIcon, renderGrowthIcon, createScrollingTerm } = require("./display");
-const { getQueueActivity, formatCardDueTime } = require("./scheduler");
-const { partitionCardsByPriority, scoreCardSearch } = require("./queue");
-const { QUEUE_VIEW_TYPE } = require("./ui-shared");
+const { formatTermForDisplay, renderMultiPinIcon, renderGrowthIcon, createScrollingTerm } = require("./components");
+const { getQueueActivity } = require("../core/schedule");
+const { formatCardDueTime } = require("../core/time");
+const { partitionCardsByPriority } = require("../core/priority");
+const { scoreCardSearch } = require("../core/search");
+const { QUEUE_VIEW_TYPE } = require("./constants");
 
 var QueueView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
@@ -34,7 +36,8 @@ var QueueView = class extends import_obsidian.ItemView {
       this.plugin.cards,
       this.plugin.urgentSourcePaths,
       priorityPinnedCardIds,
-      now
+      now,
+      this.plugin.settings
     );
     const { pinnedAvailable, urgentAvailable, regularAvailable, upcoming } = partition;
     const availableCount = pinnedAvailable.length + urgentAvailable.length + regularAvailable.length;

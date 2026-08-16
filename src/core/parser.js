@@ -1,9 +1,10 @@
 "use strict";
 
-var FENCE_PATTERN = /^\s*(`{3,}|~{3,})/;
-var BOLD_DEFINITION_PATTERN = /\*\*([^*\r\n]+?)\*\*/gu;
-var DEFINITION_DELIMITER = "\u2014";
-var HEADING_PATTERN = /^\s{0,3}#{1,6}[ \t]+(.+?)[ \t]*$/u;
+const FENCE_PATTERN = /^\s*(`{3,}|~{3,})/u;
+const BOLD_DEFINITION_PATTERN = /\*\*([^*\r\n]+?)\*\*/gu;
+const DEFINITION_DELIMITER = "—";
+const HEADING_PATTERN = /^\s{0,3}#{1,6}[ \t]+(.+?)[ \t]*$/u;
+
 function parseDefinitionsFromLine(line) {
   const definitions = [];
   for (const match of line.matchAll(BOLD_DEFINITION_PATTERN)) {
@@ -17,6 +18,7 @@ function parseDefinitionsFromLine(line) {
   }
   return definitions;
 }
+
 function parseListTermsFromLine(line) {
   const terms = [];
   for (const match of line.matchAll(BOLD_DEFINITION_PATTERN)) {
@@ -30,15 +32,13 @@ function parseListTermsFromLine(line) {
     if (delimiter <= 0) continue;
     const term = content.slice(0, delimiter).trim();
     const definition = content.slice(delimiter + DEFINITION_DELIMITER.length).trim();
-    if (term.length === 0 || definition.length === 0) continue;
-    terms.push(term);
+    if (term.length > 0 && definition.length > 0) terms.push(term);
   }
   return terms;
 }
-function parseTermLines(content) {
-  const lines = content.split(/\r?\n/u);
-  const parsed = [];
-  const occurrences = /* @__PURE__ */ new Map();
+
+function createMarkdownLineMask(lines) {
+  const usable = new Array(lines.length).fill(true);
   let inFrontmatter = lines[0]?.trim() === "---";
   let fenceCharacter = null;
   let fenceLength = 0;
@@ -46,11 +46,13 @@ function parseTermLines(content) {
     const line = lines[index] ?? "";
     const trimmed = line.trim();
     if (inFrontmatter) {
+      usable[index] = false;
       if (index > 0 && (trimmed === "---" || trimmed === "...")) inFrontmatter = false;
       continue;
     }
     const fence = line.match(FENCE_PATTERN)?.[1];
     if (fence) {
+      usable[index] = false;
       const character = fence[0];
       if (fenceCharacter === null) {
         fenceCharacter = character;
@@ -61,8 +63,19 @@ function parseTermLines(content) {
       }
       continue;
     }
-    if (fenceCharacter !== null) continue;
-    for (const { term, definition } of parseDefinitionsFromLine(line)) {
+    if (fenceCharacter !== null) usable[index] = false;
+  }
+  return usable;
+}
+
+function parseTermLines(content) {
+  const lines = content.split(/\r?\n/u);
+  const usable = createMarkdownLineMask(lines);
+  const parsed = [];
+  const occurrences = new Map();
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!usable[index]) continue;
+    for (const { term, definition } of parseDefinitionsFromLine(lines[index] ?? "")) {
       const occurrence = occurrences.get(term) ?? 0;
       occurrences.set(term, occurrence + 1);
       parsed.push({ kind: "definition", term, definition, occurrence, line: index + 1 });
@@ -70,39 +83,21 @@ function parseTermLines(content) {
   }
   return parsed;
 }
+
 function parseDefinitionLists(content) {
   const lines = content.split(/\r?\n/u);
+  const usable = createMarkdownLineMask(lines);
   const parsed = [];
-  const occurrences = /* @__PURE__ */ new Map();
-  let inFrontmatter = lines[0]?.trim() === "---";
-  let fenceCharacter = null;
-  let fenceLength = 0;
+  const occurrences = new Map();
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    const trimmed = line.trim();
-    if (inFrontmatter) {
-      if (index > 0 && (trimmed === "---" || trimmed === "...")) inFrontmatter = false;
-      continue;
-    }
-    const fence = line.match(FENCE_PATTERN)?.[1];
-    if (fence) {
-      const character = fence[0];
-      if (fenceCharacter === null) {
-        fenceCharacter = character;
-        fenceLength = fence.length;
-      } else if (character === fenceCharacter && fence.length >= fenceLength) {
-        fenceCharacter = null;
-        fenceLength = 0;
-      }
-      continue;
-    }
-    if (fenceCharacter !== null) continue;
-    const headingMatch = line.match(HEADING_PATTERN);
+    if (!usable[index]) continue;
+    const headingMatch = (lines[index] ?? "").match(HEADING_PATTERN);
     if (!headingMatch) continue;
     const title = (headingMatch[1] ?? "").replace(/[ \t]+#+[ \t]*$/u, "").trim();
     if (title.length === 0) continue;
     const occurrence = occurrences.get(title) ?? 0;
     occurrences.set(title, occurrence + 1);
+
     let termIndex = index + 1;
     let lineTerms = parseListTermsFromLine(lines[termIndex] ?? "");
     if (lineTerms.length === 0) continue;
@@ -131,4 +126,19 @@ function parseDefinitionLists(content) {
   return parsed;
 }
 
-module.exports = { FENCE_PATTERN, BOLD_DEFINITION_PATTERN, DEFINITION_DELIMITER, HEADING_PATTERN, parseDefinitionsFromLine, parseListTermsFromLine, parseTermLines, parseDefinitionLists };
+function parseReviewEntries(content) {
+  return [...parseTermLines(content), ...parseDefinitionLists(content)];
+}
+
+module.exports = {
+  BOLD_DEFINITION_PATTERN,
+  DEFINITION_DELIMITER,
+  FENCE_PATTERN,
+  HEADING_PATTERN,
+  createMarkdownLineMask,
+  parseDefinitionLists,
+  parseDefinitionsFromLine,
+  parseListTermsFromLine,
+  parseReviewEntries,
+  parseTermLines
+};

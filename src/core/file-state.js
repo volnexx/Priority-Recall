@@ -3,9 +3,18 @@
 function createFileScanState(stat) {
   return { mtime: stat.mtime, size: stat.size };
 }
+
+function isFileScanState(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && Number.isFinite(value.mtime)
+    && Number.isFinite(value.size);
+}
+
 function isSameFileState(left, right) {
   return left?.mtime === right.mtime && left.size === right.size;
 }
+
 function pruneFileStates(states, existingPaths) {
   const next = {};
   let changed = false;
@@ -16,4 +25,4 @@ function pruneFileStates(states, existingPaths) {
   return { states: next, changed };
 }
 
-module.exports = { createFileScanState, isSameFileState, pruneFileStates };
+module.exports = { createFileScanState, isFileScanState, isSameFileState, pruneFileStates };

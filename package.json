@@ -1,13 +1,11 @@
 {
   "name": "term-interval-review",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "build": "esbuild src/main.js --bundle --external:obsidian --platform=node --format=cjs --target=es2018 --outfile=main.js --log-level=warning",
-    "check": "node --check main.js"
-  },
-  "devDependencies": {
-    "esbuild": "0.21.5"
+    "build": "node scripts/build.js",
+    "test": "node --test",
+    "check": "npm run build && node --check main.js && npm test"
   }
 }

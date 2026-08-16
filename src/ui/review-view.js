@@ -1,10 +1,13 @@
 "use strict";
 
 const import_obsidian = require("obsidian");
-const { formatCardTextForDisplay, formatTermForDisplay, renderMultiPinIcon, renderGrowthIcon } = require("./display");
-const { REVIEW_INTERVALS, formatDuration, stageIntervalLabel, getGrowthUnits, getGrowthProgress, getGrowthFragment, getGrowthRevealProgress } = require("./scheduler");
-const { getReviewNavigation, chooseReviewCompletionAction } = require("./review-flow");
-const { CARD_VIEW_TYPE, getCardKind, formatDateTime } = require("./ui-shared");
+const { formatCardTextForDisplay, formatTermForDisplay, renderMultiPinIcon, renderGrowthIcon } = require("./components");
+const { getCardKind } = require("../core/card");
+const { REVIEW_INTERVALS } = require("../core/schedule");
+const { formatDuration, stageIntervalLabel, formatDateTime } = require("../core/time");
+const { getGrowthUnits, getGrowthProgress, getGrowthFragment, getGrowthRevealProgress } = require("../core/growth");
+const { getReviewNavigation, chooseReviewCompletionAction } = require("../core/review-flow");
+const { CARD_VIEW_TYPE } = require("./constants");
 
 var ReviewView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
@@ -130,7 +133,8 @@ var ReviewView = class extends import_obsidian.ItemView {
       card.id,
       this.plugin.urgentSourcePaths,
       this.plugin.getPriorityPinnedCardIds(),
-      Date.now()
+      Date.now(),
+      this.plugin.settings
     );
     const cardNavigation = flashcard.createDiv({ cls: "tir-card-navigation" });
     const previous = cardNavigation.createEl("button", {
@@ -218,7 +222,8 @@ var ReviewView = class extends import_obsidian.ItemView {
       !correct,
       this.plugin.urgentSourcePaths,
       this.plugin.getPriorityPinnedCardIds(),
-      Date.now()
+      Date.now(),
+      this.plugin.settings
     );
     if (action.type === "open") {
       this.cardId = action.cardId;
@@ -346,7 +351,8 @@ var ReviewView = class extends import_obsidian.ItemView {
       this.cardId,
       this.plugin.urgentSourcePaths,
       this.plugin.getPriorityPinnedCardIds(),
-      Date.now()
+      Date.now(),
+      this.plugin.settings
     ) : { previousCardId: null, nextCardId: null };
   }
   updateUrgentButton(button, card) {
