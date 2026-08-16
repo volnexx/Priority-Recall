@@ -8,6 +8,7 @@ const { reviewCard } = require("../src/application/review-engine");
 const { ReviewState } = require("../src/application/review-state");
 const { getGrowthRevealProgress } = require("../src/core/growth");
 const { parseDefinitionLists, parseReviewEntries, parseTermLines } = require("../src/core/parser");
+const { chooseReviewCompletionAction } = require("../src/core/review-flow");
 const { REVIEW_INTERVALS } = require("../src/core/schedule");
 
 function card(overrides = {}) {
@@ -104,6 +105,86 @@ test("ошибки выращивания отступают на одну ст�
   assert.equal(second.growthState.step, 1);
   assert.equal(second.growthState.incorrectStreak, 2);
   assert.equal(second.growthFeedback.resetToFirst, true);
+});
+
+test("переход после ответа открывает следующую доступную карточку в каждой группе", () => {
+  const now = 100_000;
+  const settings = { bedtime: "20:00", wakeTime: "06:00" };
+
+  const pinnedCards = [
+    card({ id: "pinned-current", term: "А", sourcePath: "закреплено.md", dueAt: now + 15_000 }),
+    card({ id: "pinned-next", term: "Б", sourcePath: "закреплено.md", dueAt: now - 2_000 }),
+    card({ id: "regular", term: "В", sourcePath: "обычное.md", dueAt: now - 5_000 })
+  ];
+  assert.deepEqual(
+    chooseReviewCompletionAction(
+      pinnedCards,
+      "pinned-current",
+      false,
+      new Set(),
+      new Set(["pinned-current", "pinned-next"]),
+      now,
+      settings
+    ),
+    { type: "open", cardId: "pinned-next" }
+  );
+
+  const urgentCards = [
+    card({ id: "urgent-current", term: "А", sourcePath: "срочно.md", dueAt: now + 15_000 }),
+    card({ id: "urgent-next", term: "Б", sourcePath: "срочно.md", dueAt: now - 2_000 }),
+    card({ id: "regular-2", term: "В", sourcePath: "обычное.md", dueAt: now - 5_000 })
+  ];
+  assert.deepEqual(
+    chooseReviewCompletionAction(
+      urgentCards,
+      "urgent-current",
+      false,
+      new Set(["срочно.md"]),
+      new Set(),
+      now,
+      settings
+    ),
+    { type: "open", cardId: "urgent-next" }
+  );
+
+  const regularCards = [
+    card({ id: "regular-current", term: "А", sourcePath: "обычное-1.md", dueAt: now + 15_000 }),
+    card({ id: "regular-next", term: "Б", sourcePath: "обычное-2.md", dueAt: now - 2_000 })
+  ];
+  assert.deepEqual(
+    chooseReviewCompletionAction(
+      regularCards,
+      "regular-current",
+      false,
+      new Set(),
+      new Set(),
+      now,
+      settings
+    ),
+    { type: "open", cardId: "regular-next" }
+  );
+});
+
+test("закреплённый режим не проваливается в обычную очередь при ожидании", () => {
+  const now = 100_000;
+  const settings = { bedtime: "20:00", wakeTime: "06:00" };
+  const pinnedDueAt = now + 5_000;
+  const cards = [
+    card({ id: "pinned-current", term: "А", dueAt: pinnedDueAt }),
+    card({ id: "regular", term: "Б", sourcePath: "обычное.md", dueAt: now - 5_000 })
+  ];
+  assert.deepEqual(
+    chooseReviewCompletionAction(
+      cards,
+      "pinned-current",
+      true,
+      new Set(),
+      new Set(["pinned-current"]),
+      now,
+      settings
+    ),
+    { type: "wait", cardId: "pinned-current", dueAt: pinnedDueAt }
+  );
 });
 
 test("данные версии 12 проходят через хранение без потери закреплений", () => {
